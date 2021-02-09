@@ -21,6 +21,9 @@ public class FinalizarLeilaoServiceTest {
     private FinalizarLeilaoService service;
 
     @Mock
+    private EnviadorDeEmails enviadorDeEmails;
+
+    @Mock
     private LeilaoDao leilaoDaoMock;
 
     @Test
@@ -28,7 +31,7 @@ public class FinalizarLeilaoServiceTest {
         List<Leilao> leiloes = criaListaLeiloes();
         Mockito.when(leilaoDaoMock.buscarLeiloesExpirados()).thenReturn(leiloes);
 
-        service = new FinalizarLeilaoService(leilaoDaoMock);
+        service = new FinalizarLeilaoService(leilaoDaoMock, enviadorDeEmails);
         service.finalizarLeiloesExpirados();
 
         Leilao leilao = leiloes.get(0);
@@ -36,6 +39,38 @@ public class FinalizarLeilaoServiceTest {
         Assert.assertTrue(leilao.getFechado());
         Assert.assertEquals(new BigDecimal(600), leilao.getLanceVencedor().getValor());
         Mockito.verify(leilaoDaoMock, Mockito.atLeastOnce()).salvar(leilao);
+    }
+
+
+    @Test
+    public void deveriaEnviarEmailParaVencedorDoLeilao() {
+        List<Leilao> leiloes = criaListaLeiloes();
+        Mockito.when(leilaoDaoMock.buscarLeiloesExpirados()).thenReturn(leiloes);
+
+        service = new FinalizarLeilaoService(leilaoDaoMock, enviadorDeEmails);
+        service.finalizarLeiloesExpirados();
+
+        Leilao leilao = leiloes.get(0);
+        Lance lanceVencedor = leilao.getLanceVencedor();
+
+        Mockito.verify(enviadorDeEmails, Mockito.atLeastOnce()).enviarEmailVencedorLeilao(lanceVencedor);
+    }
+
+    @Test
+    public void naoDeveriaEnviarEmailEmCasoDeErroAoSalvarLeilao() {
+        List<Leilao> leiloes = criaListaLeiloes();
+        Mockito.when(leilaoDaoMock.buscarLeiloesExpirados()).thenReturn(leiloes);
+
+        Mockito.when(leilaoDaoMock.salvar(Mockito.any())).thenThrow(RuntimeException.class);
+
+        service = new FinalizarLeilaoService(leilaoDaoMock, enviadorDeEmails);
+
+        try {
+            service.finalizarLeiloesExpirados();
+            Mockito.verifyNoInteractions(enviadorDeEmails);
+        } catch (Exception ex) {
+
+        }
     }
 
     private List<Leilao> criaListaLeiloes() {
